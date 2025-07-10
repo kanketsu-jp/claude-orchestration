@@ -113,10 +113,41 @@ check_all_agents() {
     tmux list-windows -t "$SESSION" | grep Agent
 }
 
+# 部下の監視を開始
+watch_agents() {
+    local SESSION="$SESSION_NAME"
+    local PROJECT_DIR="$(pwd)"
+    
+    echo "=== 部下監視システム ==="
+    echo ""
+    echo "以下のコマンドを新しいターミナルで実行してください："
+    echo ""
+    echo "  cd $PROJECT_DIR"
+    echo "  ./agent-dashboard.sh $SESSION"
+    echo ""
+    echo "または簡易監視："
+    echo "  ./watch-agents.sh $SESSION"
+}
+
+# 特定の部下の詳細を表示
+show_agent_detail() {
+    local AGENT_TYPE=$1
+    local SESSION="$SESSION_NAME"
+    
+    if tmux has-session -t "$SESSION:Agent-$AGENT_TYPE" 2>/dev/null; then
+        echo "=== Agent-$AGENT_TYPE の最新出力 ==="
+        tmux capture-pane -t "$SESSION:Agent-$AGENT_TYPE" -p | tail -30
+    else
+        echo "エラー: Agent-$AGENT_TYPE は存在しません"
+    fi
+}
+
 export -f create_agent
 export -f send_to_agent
 export -f notify_ceo
 export -f check_all_agents
+export -f watch_agents
+export -f show_agent_detail
 EOF
 
 chmod +x "/tmp/ceo-helpers.sh"
@@ -144,6 +175,10 @@ echo '   send_to_agent frontend "Issue #34のノート機能を実装してく�
 echo ""
 echo "4. 部下からの完了通知（部下のClaude Codeで実行）:"
 echo '   echo "[完了] Issue #34のUI実装が完了しました" >> '$NOTIFY_FILE
+echo ""
+echo "5. 部下の監視（新しいターミナルで実行）:"
+echo "   cd $(pwd)"
+echo "   ./agent-dashboard.sh $SESSION_NAME"
 echo ""
 echo "通知ファイル: $NOTIFY_FILE"
 echo ""
