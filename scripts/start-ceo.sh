@@ -34,7 +34,9 @@ tmux send-keys -t "${SESSION_NAME}:0.0" "echo ''" Enter
 
 # CEOペインでClaude Codeを起動
 echo -e "${YELLOW}Claude Code (CCA) を起動中...${NC}"
-tmux send-keys -t "${SESSION_NAME}:0.0" "cca" Enter
+tmux send-keys -t "${SESSION_NAME}:0.0" "cca"
+sleep 0.5
+tmux send-keys -t "${SESSION_NAME}:0.0" Enter
 
 # Step 2: Setup monitoring pane
 tmux split-window -h -t "${SESSION_NAME}:0" -c "$(pwd)"
@@ -65,11 +67,39 @@ cat > "/tmp/ceo-helpers.sh" << 'EOF'
 #!/bin/bash
 # Helper functions for CEO operations
 
+# 現在の部下を確認する関数
+list_agents() {
+    local SESSION="$SESSION_NAME"
+    echo "=== 現在稼働中の部下 ==="
+    tmux list-windows -t "$SESSION" -F "#{window_index}: #{window_name} (#{pane_pid})" | grep -v "CEO"
+    echo ""
+}
+
+# 部下を削除する関数
+remove_agent() {
+    local AGENT_TYPE=$1
+    local SESSION="$SESSION_NAME"
+    
+    if tmux has-session -t "$SESSION:Agent-$AGENT_TYPE" 2>/dev/null; then
+        tmux kill-window -t "$SESSION:Agent-$AGENT_TYPE"
+        echo "Agent-$AGENT_TYPE を削除しました"
+    else
+        echo "エラー: Agent-$AGENT_TYPE は存在しません"
+    fi
+}
+
 # 部下を作成する関数
 create_agent() {
     local AGENT_TYPE=$1
     local ISSUE_NUM=$2
     local SESSION="$SESSION_NAME"
+    
+    # 既存の部下を確認
+    if tmux has-session -t "$SESSION:Agent-$AGENT_TYPE" 2>/dev/null; then
+        echo "警告: Agent-$AGENT_TYPE は既に存在します"
+        echo "既存の部下を使用するか、remove_agent $AGENT_TYPE で削除してください"
+        return 1
+    fi
     
     echo "Creating agent: $AGENT_TYPE for Issue #$ISSUE_NUM"
     
@@ -80,7 +110,9 @@ create_agent() {
     tmux new-window -t "$SESSION" -n "Agent-$AGENT_TYPE" -c "../$(basename $(pwd))-agent-$AGENT_TYPE"
     
     # Start Claude Code
-    tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" "cca" Enter
+    tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" "cca"
+    sleep 0.5
+    tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" Enter
     
     echo "Agent $AGENT_TYPE created in window 'Agent-$AGENT_TYPE'"
 }
@@ -93,7 +125,9 @@ send_to_agent() {
     local SESSION="$SESSION_NAME"
     
     echo "Sending to $AGENT_TYPE: $MESSAGE"
-    tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" "$MESSAGE" Enter
+    tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" "$MESSAGE"
+    sleep 0.5
+    tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" Enter
 }
 
 # 部下からの通知を記録する関数（旧版・互換性のため残す）
@@ -143,6 +177,8 @@ show_agent_detail() {
     fi
 }
 
+export -f list_agents
+export -f remove_agent
 export -f create_agent
 export -f send_to_agent
 export -f notify_ceo

@@ -79,6 +79,21 @@ tmux attach -t ceo-YOUR_PROJECT-1234567890
 「src/componentsディレクトリのコードをTypeScriptに移行してください」
 ```
 
+### 部下の管理（PMが実行）
+```bash
+# 現在の部下を確認
+list_agents
+
+# 新しい部下を作成
+create_agent frontend 34
+
+# 不要な部下を削除
+remove_agent frontend
+
+# 部下への指示
+send_to_agent frontend "Issue #34の実装を開始してください"
+```
+
 ### 効果的な指示のコツ
 
 #### ✅ 良い指示の例
