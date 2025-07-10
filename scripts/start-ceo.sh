@@ -6,8 +6,19 @@ set -e
 
 # Configuration
 PROJECT_NAME=$(basename $(pwd))
-SESSION_NAME="ceo-model"
+# セッション名にプロジェクト名を含めて干渉を防ぐ
+SESSION_NAME="ceo-${PROJECT_NAME}-$(date +%s)"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# CCLコマンドの検出
+if command -v ccl &> /dev/null; then
+    CLAUDE_CMD="ccl"
+elif command -v cca &> /dev/null; then
+    CLAUDE_CMD="cca"
+else
+    echo "エラー: CCLまたはCCAコマンドが見つかりません"
+    exit 1
+fi
 
 # Colors
 GREEN='\033[0;32m'
@@ -24,8 +35,24 @@ tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true
 echo -e "${YELLOW}1. CEOセッション作成...${NC}"
 tmux new-session -d -s "$SESSION_NAME" -n "CEO" -c "$(pwd)"
 
+# CEOペインにラベルを表示
+tmux send-keys -t "${SESSION_NAME}:0.0" "clear" Enter
+tmux send-keys -t "${SESSION_NAME}:0.0" "echo -e '${GREEN}=== CEO (最高権限者) ===${NC}'" Enter
+tmux send-keys -t "${SESSION_NAME}:0.0" "echo 'プロジェクト: $PROJECT_NAME'" Enter
+tmux send-keys -t "${SESSION_NAME}:0.0" "echo 'セッション: $SESSION_NAME'" Enter
+tmux send-keys -t "${SESSION_NAME}:0.0" "echo ''" Enter
+
+# CEOペインでClaude Codeを起動
+echo -e "${YELLOW}Claude Code (CCL) を起動中...${NC}"
+tmux send-keys -t "${SESSION_NAME}:0.0" "$CLAUDE_CMD" Enter
+
 # Step 2: Setup monitoring pane
 tmux split-window -h -t "${SESSION_NAME}:0" -c "$(pwd)"
+
+# モニタリングペインにラベルを表示
+tmux send-keys -t "${SESSION_NAME}:0.1" "clear" Enter
+tmux send-keys -t "${SESSION_NAME}:0.1" "echo -e '${YELLOW}=== Git監視 (Monitoring) ===${NC}'" Enter
+tmux send-keys -t "${SESSION_NAME}:0.1" "echo ''" Enter
 tmux send-keys -t "${SESSION_NAME}:0.1" 'watch -n 2 "echo \"=== Git Worktrees ===\" && git worktree list && echo && echo \"=== Active Branches ===\" && git branch -r | grep -E \"agent-|issue-\" | head -10"' Enter
 
 # Step 3: Create notification file
@@ -35,6 +62,12 @@ echo "部下からの完了通知がここに記録されます" >> "$NOTIFY_FIL
 
 # Step 4: Setup CEO monitoring of notifications
 tmux split-window -v -t "${SESSION_NAME}:0.1" -c "$(pwd)"
+
+# 通知監視ペインにラベルを表示
+tmux send-keys -t "${SESSION_NAME}:0.2" "clear" Enter
+tmux send-keys -t "${SESSION_NAME}:0.2" "echo -e '${YELLOW}=== 通知監視 (Notifications) ===${NC}'" Enter
+tmux send-keys -t "${SESSION_NAME}:0.2" "echo 'ファイル: $NOTIFY_FILE'" Enter
+tmux send-keys -t "${SESSION_NAME}:0.2" "echo ''" Enter
 tmux send-keys -t "${SESSION_NAME}:0.2" "tail -f $NOTIFY_FILE" Enter
 
 # Step 5: Create helper functions file
@@ -46,7 +79,7 @@ cat > "/tmp/ceo-helpers.sh" << 'EOF'
 create_agent() {
     local AGENT_TYPE=$1
     local ISSUE_NUM=$2
-    local SESSION="ceo-model"
+    local SESSION="$SESSION_NAME"
     
     echo "Creating agent: $AGENT_TYPE for Issue #$ISSUE_NUM"
     
@@ -57,7 +90,7 @@ create_agent() {
     tmux new-window -t "$SESSION" -n "Agent-$AGENT_TYPE" -c "../$(basename $(pwd))-agent-$AGENT_TYPE"
     
     # Start Claude Code
-    tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" "cca" Enter
+    tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" "$CLAUDE_CMD" Enter
     
     echo "Agent $AGENT_TYPE created in window 'Agent-$AGENT_TYPE'"
 }
@@ -67,7 +100,7 @@ send_to_agent() {
     local AGENT_TYPE=$1
     shift
     local MESSAGE="$@"
-    local SESSION="ceo-model"
+    local SESSION="$SESSION_NAME"
     
     echo "Sending to $AGENT_TYPE: $MESSAGE"
     tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" "$MESSAGE" Enter
@@ -85,7 +118,7 @@ notify_ceo() {
 
 # 全エージェントのステータス確認
 check_all_agents() {
-    local SESSION="ceo-model"
+    local SESSION="$SESSION_NAME"
     echo "=== Agent Status ==="
     tmux list-windows -t "$SESSION" | grep Agent
 }
@@ -97,6 +130,12 @@ export -f check_all_agents
 EOF
 
 chmod +x "/tmp/ceo-helpers.sh"
+
+# CEOへの起動確認メッセージを送信（5秒待機）
+sleep 5
+tmux send-keys -t "${SESSION_NAME}:0.0" "echo -e '${GREEN}✅ CEO Model起動完了！${NC}'" Enter
+tmux send-keys -t "${SESSION_NAME}:0.0" "echo 'セッション名: $SESSION_NAME'" Enter
+tmux send-keys -t "${SESSION_NAME}:0.0" "echo '部下作成は create_agent コマンドを使用してください'" Enter
 
 # Instructions
 echo -e "\n${GREEN}✅ CEO Model 起動完了！${NC}"
@@ -121,3 +160,7 @@ echo ""
 
 # Save the notification file path for later use
 echo "$NOTIFY_FILE" > "/tmp/${PROJECT_NAME}-notify-path.txt"
+echo "$SESSION_NAME" > "/tmp/${PROJECT_NAME}-session-name.txt"
+
+# エクスポート関数にセッション名を渡す
+export SESSION_NAME
