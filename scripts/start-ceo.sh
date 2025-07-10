@@ -10,16 +10,6 @@ PROJECT_NAME=$(basename $(pwd))
 SESSION_NAME="ceo-${PROJECT_NAME}-$(date +%s)"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# CCLコマンドの検出
-if command -v ccl &> /dev/null; then
-    CLAUDE_CMD="ccl"
-elif command -v cca &> /dev/null; then
-    CLAUDE_CMD="cca"
-else
-    echo "エラー: CCLまたはCCAコマンドが見つかりません"
-    exit 1
-fi
-
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -43,8 +33,8 @@ tmux send-keys -t "${SESSION_NAME}:0.0" "echo 'セッション: $SESSION_NAME'" 
 tmux send-keys -t "${SESSION_NAME}:0.0" "echo ''" Enter
 
 # CEOペインでClaude Codeを起動
-echo -e "${YELLOW}Claude Code (CCL) を起動中...${NC}"
-tmux send-keys -t "${SESSION_NAME}:0.0" "$CLAUDE_CMD" Enter
+echo -e "${YELLOW}Claude Code (CCA) を起動中...${NC}"
+tmux send-keys -t "${SESSION_NAME}:0.0" "cca" Enter
 
 # Step 2: Setup monitoring pane
 tmux split-window -h -t "${SESSION_NAME}:0" -c "$(pwd)"
@@ -90,7 +80,7 @@ create_agent() {
     tmux new-window -t "$SESSION" -n "Agent-$AGENT_TYPE" -c "../$(basename $(pwd))-agent-$AGENT_TYPE"
     
     # Start Claude Code
-    tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" "$CLAUDE_CMD" Enter
+    tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" "cca" Enter
     
     echo "Agent $AGENT_TYPE created in window 'Agent-$AGENT_TYPE'"
 }
