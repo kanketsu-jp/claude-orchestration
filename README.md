@@ -42,11 +42,8 @@ git commit -m "chore: claude-orchestrationサブモジュールを更新"
 
 このスクリプトは以下を実行します：
 - プロジェクト名とタイムスタンプを含むユニークなセッション名を生成（他プロジェクトと干渉しない）
-- 3つのペインを持つtmuxセッションを作成
-  - CEOペイン: Claude Code（cca）を自動起動
-  - Git監視ペイン: worktreeとブランチの状態を監視
-  - 通知監視ペイン: 部下からの通知を表示
-- 各ペインに役割ラベルを表示
+- PMのClaude Code（cca）を自動起動
+- セッション情報を保存（部下からの通知用）
 
 ### 2. セッションへのアタッチ
 ```bash
@@ -68,23 +65,33 @@ send_to_agent frontend "Issue #34のUIコンポーネントを実装してくだ
 send_to_agent backend "Issue #35のAPIエンドポイントを作成してください"
 ```
 
-### 5. 部下からの通知
+### 5. 部下からの通知（新機能）
 部下のClaude Code内で：
 ```bash
-# 通知ファイルのパスを取得
-NOTIFY_FILE=$(cat /tmp/$(basename $(pwd))-notify-path.txt)
-echo "[完了] Issue #34の実装が完了しました" >> $NOTIFY_FILE
+# PMへ直接通知を送信
+.claude-orchestration/scripts/notify-pm.sh "PR #47を作成しました" "Agent-Backend"
+```
+
+### 6. PR自動監視（新機能）
+```bash
+# 30秒ごとに新規PRをチェック
+.claude-orchestration/scripts/check-pr-status.sh 30 &
 ```
 
 ## 📁 ディレクトリ構成
 
 ```
 .claude-orchestration/
-├── README.md           # このファイル
+├── README.md              # このファイル
+├── README-CEO.md          # CEO向け詳細マニュアル
+├── AGENT_GUIDE.md         # 部下（Agent）向けガイド
+├── agent-watch-commands.md # 部下監視コマンド集
 ├── scripts/
-│   ├── start-ceo.sh   # CEO Model起動スクリプト
-│   └── agent-notify.sh # 部下用通知スクリプト
-└── templates/         # プロジェクト設定テンプレート（将来拡張用）
+│   ├── start-ceo.sh       # CEO Model起動スクリプト
+│   ├── notify-pm.sh       # 部下→PM通知スクリプト
+│   ├── check-pr-status.sh # PR自動監視スクリプト
+│   └── agent-notify.sh    # 旧通知スクリプト（互換性）
+└── templates/             # プロジェクト設定テンプレート
 ```
 
 ## 🔧 プロジェクトでの設定

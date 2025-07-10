@@ -214,6 +214,34 @@ PM（Claude）に以下のように指示することもできます：
 - 「show_agent_detail frontend を実行して」
 - 「watch_agents を実行して」
 
+## 📨 部下からの通知システム
+
+### 部下からPMへの直接通知
+部下（Agent）がタスクを完了したときに、PMに直接通知を送ることができます。
+
+#### 通知の送信方法（部下が実行）
+```bash
+# プロジェクトルートから
+.claude-orchestration/scripts/notify-pm.sh "PR #47を作成しました" "Agent-Backend"
+```
+
+#### 通知の受信
+- PMのClaude Codeに直接表示されます
+- 通知履歴: `/tmp/プロジェクト名-pm-notifications.txt`
+
+#### PR自動監視
+新しいPRの作成を自動検出してPMに通知：
+```bash
+# 30秒ごとに監視（バックグラウンド実行）
+.claude-orchestration/scripts/check-pr-status.sh 30 &
+```
+
+### 部下への指示例
+```
+部下に作業完了時は必ず以下を実行するよう指示してください：
+.claude-orchestration/scripts/notify-pm.sh "メッセージ" "Agent名"
+```
+
 ## ⚠️ トラブルシューティング
 
 ### PMが応答しない

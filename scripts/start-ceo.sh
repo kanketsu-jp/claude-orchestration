@@ -96,14 +96,15 @@ send_to_agent() {
     tmux send-keys -t "$SESSION:Agent-$AGENT_TYPE" "$MESSAGE" Enter
 }
 
-# 部下からの通知を記録する関数
+# 部下からの通知を記録する関数（旧版・互換性のため残す）
 notify_ceo() {
     local AGENT_TYPE=$1
     shift
     local MESSAGE="$@"
-    local NOTIFY_FILE="/tmp/$(basename $(pwd))-ceo-notifications.txt"
     
-    echo "[$(date +%H:%M:%S)] Agent-$AGENT_TYPE: $MESSAGE" >> "$NOTIFY_FILE"
+    # 新しいnotify-pm.shを使用
+    local SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    "$SCRIPT_DIR/notify-pm.sh" "$MESSAGE" "Agent-$AGENT_TYPE"
 }
 
 # 全エージェントのステータス確認
