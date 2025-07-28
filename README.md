@@ -1,179 +1,225 @@
-# Claude Orchestration - Git Submodule
+# TMUX Organization System
 
-Claude CodeのCEO Model開発体制をサポートするためのサブモジュールです。tmuxを使用した階層的な開発組織（CEO/PM/Worker）を構築し、効率的なプロジェクト管理を実現します。
+プロジェクトIDベースのTMUXセッション管理システム
 
-## 🎯 概要
+## 概要
 
-このリポジトリは**サブモジュール**として各プロジェクトに組み込んで使用することを前提としています。プロジェクトごとに独立したCEO Modelセッションを構築し、複数のClaude Codeインスタンスを統合的に管理できます。
+このシステムはClaudeエージェントがTMUXを使用して上司-部下の組織を構築し、大規模タスクを並列処理するためのフレームワークです。
 
-## 📦 サブモジュールとしての導入
+## 使用タイミング
 
-### 1. 既存プロジェクトへの追加
+- 単一エージェントでは対応困難な大規模イシュー
+- 多数の小タスクを並列処理したい場合
+- 複数の作業を同時進行で管理したい場合
+
+## セッション管理
+
+### プロジェクトセッション作成
 ```bash
-cd your-project
-git submodule add https://github.com/kanketsu-jp/claude-orchestration.git .claude-orchestration
-git submodule update --init --recursive
-git commit -m "feat: claude-orchestrationをサブモジュールとして追加"
+# プロジェクトIDでセッション作成
+tmux new-session -d -s "project-{PROJECT_ID}"
 ```
 
-### 2. プロジェクトのクローン時
+### アクセスコマンド
+
+#### セッション一覧表示
 ```bash
-git clone --recurse-submodules https://github.com/your-org/your-project.git
-# または既存のクローンに対して
-git submodule update --init --recursive
+tmux ls
 ```
 
-### 3. サブモジュールの更新
+#### セッションにアタッチ（分割画面を確認）
 ```bash
-cd .claude-orchestration
-git pull origin main
-cd ..
-git add .claude-orchestration
-git commit -m "chore: claude-orchestrationサブモジュールを更新"
+tmux attach -t "project-{PROJECT_ID}"
 ```
 
-## 🚀 使用方法
-
-### 1. CEO Modelの起動
+#### 外部からのアクセス（VPN経由）
 ```bash
-# プロジェクトルートから実行
-.claude-orchestration/scripts/start-ceo.sh
+ssh user@host -t "tmux attach -t 'project-{PROJECT_ID}'"
 ```
 
-このスクリプトは以下を実行します：
-- プロジェクト名とタイムスタンプを含むユニークなセッション名を生成（他プロジェクトと干渉しない）
-- PMのClaude Code（cca）を自動起動
-- セッション情報を保存（部下からの通知用）
-
-### 2. セッションへのアタッチ
+#### セッション削除（タスク完了時）
 ```bash
-# 起動時に表示されるセッション名を使用
-tmux attach -t ceo-YOUR_PROJECT-1234567890
+tmux kill-session -t "project-{PROJECT_ID}"
 ```
 
-### 3. 部下（Worker）の作成
-CEOペインのClaude Code内で：
+## ブランチ戦略
+
+1. 作業ブランチの作成優先順位：
+   - `dev-HoriikeKazuma` から作成
+   - 存在しない場合は `dev` から作成
+   - どちらも存在しない場合は `main` から作成
+
+2. ブランチ命名規則：
+   ```bash
+   dev-Horiike-{issue番号またはタスク識別子}
+   ```
+
+3. 作業フロー：
+   - ブランチ作成 → 作業 → MR作成 → マージ後ブランチ削除
+
+## 重要な注意事項
+
+### Claude Code起動時の待機
 ```bash
-source /tmp/ceo-helpers.sh
-create_agent frontend 34    # フロントエンド担当をIssue #34用に作成
-create_agent backend 35     # バックエンド担当をIssue #35用に作成
+ccl  # Claude Code起動
+sleep 2  # 1-2秒待機
 ```
 
-### 4. 部下への指示
+### プロンプト送信の手順
+1. プロンプトを入力
+2. Enter送信
+3. **空のEnterを追加送信**（重要）
+
+これにより、tmux内のClaudeエージェントに確実に指示が伝達されます。
+
+## 画面レイアウト
+
+```
++-------------------+
+|     上司 (PM)     |
++--------+----------+
+| 部下1  |  部下2   |
++--------+----------+
+| 部下3  |  部下4   |
++--------+----------+
+```
+
+## 緊急停止
+
+すべてのプロセスとセッションを削除：
 ```bash
-send_to_agent frontend "Issue #34のUIコンポーネントを実装してください"
-send_to_agent backend "Issue #35のAPIエンドポイントを作成してください"
+tmux kill-session -t "project-{PROJECT_ID}"
+pkill -f "ccl.*project-{PROJECT_ID}"
 ```
 
-### 5. 部下からの通知（新機能）
-部下のClaude Code内で：
+## 具体的な使用方法
+
+### 1. 組織の起動
 ```bash
-# PMへ直接通知を送信
-.claude-orchestration/scripts/notify-pm.sh "PR #47を作成しました" "Agent-Backend"
+.claude-orchestration/claude-orchestration-config/tmux-org/start-organization.sh PROJECT-123
 ```
 
-### 6. PR自動監視（新機能）
+### 2. セッションへのアクセス
 ```bash
-# 30秒ごとに新規PRをチェック
-.claude-orchestration/scripts/check-pr-status.sh 30 &
+# ローカルアクセス
+tmux attach -t "project-PROJECT-123"
+
+# リモートアクセス（VPN経由）
+ssh user@host -t "tmux attach -t 'project-PROJECT-123'"
 ```
 
-## 📁 ディレクトリ構成
+### 3. 部下の作成（上司のペインから実行）
+```bash
+# 基本的な部下作成
+.claude-orchestration/claude-orchestration-config/tmux-org/create-agent.sh frontend
+
+# タスクID付きで作成
+.claude-orchestration/claude-orchestration-config/tmux-org/create-agent.sh backend 35
+```
+
+### 4. 部下への指示送信
+```bash
+# Pane番号を指定して送信（0:上司, 1:部下1, 2:部下2...）
+.claude-orchestration/claude-orchestration-config/tmux-org/send-to-agent.sh 1 "Issue #34のUIを実装してください"
+.claude-orchestration/claude-orchestration-config/tmux-org/send-to-agent.sh 2 "APIエンドポイントを作成してください"
+```
+
+### 5. ペイン番号の確認
+```bash
+# TMUXセッション内で実行
+Ctrl+b q  # 各ペインの番号が表示される
+```
+
+### 6. 組織の停止
+```bash
+.claude-orchestration/claude-orchestration-config/tmux-org/stop-organization.sh
+```
+
+## ディレクトリ構造
 
 ```
+.claude-orchestration/           # プロジェクトにコピーするディレクトリ
+└── claude-orchestration-config/
+    ├── tmux-org/
+    │   ├── start-organization.sh    # 組織起動
+    │   ├── create-agent.sh          # 部下作成
+    │   ├── send-to-agent.sh         # 指示送信
+    │   ├── stop-organization.sh     # 組織停止
+    │   └── agent-helper.sh          # ブランチ管理ヘルパー
+    └── hooks/
+        ├── global-settings.json     # フック設定サンプル
+        ├── install-hooks.sh         # フックインストーラー
+        ├── detect-tmux-command.sh   # TMUXコマンド検出
+        ├── check-git-operations.sh  # Git操作監視
+        ├── notify-task-completion.sh # タスク完了通知
+        ├── session-cleanup.sh       # セッションクリーンアップ
+        └── agent-task-complete.sh   # エージェントタスク完了
+
+# プロジェクトルートに作成されるファイル
 .claude-orchestration/
-├── README.md              # このファイル
-├── README-CEO.md          # CEO向け詳細マニュアル
-├── AGENT_GUIDE.md         # 部下（Agent）向けガイド
-├── agent-watch-commands.md # 部下監視コマンド集
-├── scripts/
-│   ├── start-ceo.sh       # CEO Model起動スクリプト
-│   ├── notify-pm.sh       # 部下→PM通知スクリプト
-│   ├── check-pr-status.sh # PR自動監視スクリプト
-│   └── agent-notify.sh    # 旧通知スクリプト（互換性）
-└── templates/             # プロジェクト設定テンプレート
+├── current-tmux-session.txt     # 現在のセッション名
+├── tmux-commands.md             # プロジェクト用コマンド集
+├── task-completion.log          # タスク完了ログ
+└── task-summary.md              # タスクサマリー
 ```
 
-## 🔧 プロジェクトでの設定
+## Claude Codeフック機能
 
-### CLAUDE.mdへの記載例
-```markdown
-## 開発体制
+### フックのインストール
 
-### Claude Orchestration (CEO Model)
-このプロジェクトはclaude-orchestrationサブモジュールを使用したCEO Model開発体制を採用しています。
-
-起動方法:
-\`\`\`bash
-.claude-orchestration/scripts/start-ceo.sh
-\`\`\`
-
-詳細: `.claude-orchestration/README.md`を参照
-```
-
-### .gitignoreへの追加
-```gitignore
-# Claude Orchestration
-../*-agent-*/          # Git worktreeディレクトリ
-/tmp/*-ceo-*.txt       # 一時ファイル
-```
-
-## 💡 ベストプラクティス
-
-### 1. セッション管理
-- プロジェクトごとに独立したセッションが作成される
-- セッション名にはプロジェクト名とタイムスタンプが含まれる
-- 作業終了時は必ずセッションをクリーンアップ
-
-### 2. サブモジュールの更新
-- 定期的に最新版に更新することを推奨
-- 更新前に現在の動作を確認
-- 更新後は必ずテスト実行
-
-### 3. リソース管理
-- 各Claude Codeインスタンスは2-4GBのRAMを使用
-- 同時に起動する部下は2-3個が推奨
-- 不要なworktreeは定期的に削除
-
-## 🛠️ トラブルシューティング
-
-### サブモジュールが見つからない
 ```bash
-git submodule update --init --recursive
+# グローバルフックをインストール（一度だけ実行）
+.claude-orchestration/claude-orchestration-config/hooks/install-hooks.sh
 ```
 
-### セッション名の確認
+## 他プロジェクトでの使用方法
+
+1. `.claude-orchestration` ディレクトリをプロジェクトにコピー
 ```bash
-cat /tmp/*-session-name.txt
-tmux list-sessions
+cp -r /path/to/.claude-orchestration /your/project/
 ```
 
-### 通知が表示されない
+2. 組織を起動
 ```bash
-# 通知ファイルの場所を確認
-cat /tmp/*-notify-path.txt
+cd /your/project
+.claude-orchestration/claude-orchestration-config/tmux-org/start-organization.sh PROJECT-ID
 ```
 
-## 📝 サブモジュールのカスタマイズ
+3. TMUXセッションにアタッチして作業開始
 
-プロジェクト固有の設定が必要な場合：
+### フック機能一覧
 
-1. **フォーク不要**: 設定はプロジェクト側のCLAUDE.mdで行う
-2. **スクリプトの拡張**: プロジェクト側でラッパースクリプトを作成
-3. **環境変数**: プロジェクト側の`.env`で設定
+1. **TMUXコマンド自動検出** (UserPromptSubmit)
+   - 「組織を開始」「部下を作成」などのコマンドを検出
+   - 適切なスクリプトの使用を提案
 
-## ⚠️ 注意事項
+2. **Git操作監視** (PostToolUse - Bash)
+   - ブランチ作成時に命名規則をチェック
+   - 推奨ベースブランチを提示
+   - MR/PR作成を検出して上司に通知
 
-1. **サブモジュールの変更**: 変更は元のリポジトリにプッシュされる
-2. **バージョン固定**: 特定のコミットに固定することを推奨
-3. **プライベートリポジトリ**: アクセス権限の設定が必要
+3. **タスク完了通知** (PostToolUse - Task)
+   - タスク完了時に自動的に上司に通知
+   - 完了ログを記録
 
-## 🔄 更新履歴
+4. **セッションクリーンアップ** (Stop)
+   - Claude Code終了時に自動クリーンアップ
+   - 古いログファイルの削除
 
-- 2025-01-10: サブモジュール前提の内容に全面改訂
-- 2025-01-10: CCLコマンド検出を削除、CCAのみ使用
-- 2025-01-10: セッション名のユニーク化、役割表示機能追加
+5. **エージェントタスク管理** (SubagentStop)
+   - 部下のタスク完了を記録
+   - タスクサマリーを自動生成
 
----
-Repository: https://github.com/kanketsu-jp/claude-orchestration
-License: MIT
+### フックの確認
+
+```bash
+# Claude Code内で実行
+/hooks
+```
+
+### フックの無効化
+
+```bash
+# 設定ファイルを削除またはバックアップ
+mv ~/.claude/settings.json ~/.claude/settings.json.disabled
+```
